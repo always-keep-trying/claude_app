@@ -1,0 +1,9 @@
+I want you to help me build a python based application that can be run locally by a user. The goal of the app is an interface for the claude API. Here are requirements of the app, which may be updated or added in the future.
+
+Requirements
+* local configuration editor: this is where the API key, model choice, max tokens and other parameters can be set. The app should offer an interface to this local file so that it can be edited.
+* Chat history: use a folder structure to host history of the chat. This is so that past chats can be revisited or restarted using the API.
+* Chat window: Provide user with a window to chat with the API, toggle between chats, open the local configuration file.
+* Response identifier: If the "stop_reason" from the response is "end_turn" show a green check mark next to the response. If it is other reasons such as "max_tokens" show a yellow check mark. When the user hovers over the checkmark it should show the user the reason.
+* Overall token usage and cost estimator: On the top right side of the app, there should be a counter of the tokens used with the API along with the total estimated cost based on the usage. This number should not reset when the app is relaunched, that way the user can have confidence in the usage without fearing high cost.
+* Programming language: use Python and modern packages from pypi.
