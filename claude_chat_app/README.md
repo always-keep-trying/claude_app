@@ -74,11 +74,11 @@ claude_chat_app/
 
 | Model | Input (per M tokens) | Output (per M tokens) |
 |---|---|---|
-| claude-opus-4-6 | $15.00 | $75.00 |
+| claude-opus-4-6 | $5.00 | $25.00 |
 | claude-sonnet-4-6 | $3.00 | $15.00 |
-| claude-haiku-4-5-20251001 | $0.80 | $4.00 |
+| claude-haiku-4-5-20251001 | $1.00 | $5.00 |
 
-> Update `MODEL_PRICING` in `history_manager.py` if Anthropic changes pricing.
+> Source: Anthropic official pricing, February 2026. Update `MODEL_PRICING` in `history_manager.py` if Anthropic changes pricing.
 
 ---
 
