@@ -19,6 +19,11 @@ from theme import (
     CLR_LOG_ASST_BG, CLR_LOG_ASST_HDR, CLR_LOG_ASST_ROLE,
     CLR_LOG_USER_BG, CLR_LOG_USER_HDR, CLR_LOG_USER_ROLE,
 )
+
+# Error role colours for LogBubble
+CLR_LOG_ERR_BG   = "#3b0f0f"
+CLR_LOG_ERR_HDR  = "#5c1a1a"
+CLR_LOG_ERR_ROLE = "#f87171"
 from widgets.markdown_frame import MarkdownFrame
 from widgets.dialogs import Tooltip
 
@@ -146,7 +151,7 @@ class StreamingBubble(ctk.CTkFrame):
 class LogBubble(ctk.CTkFrame):
     """
     Full-width diagnostic card for the Message Log tab.
-    Deep blue = USER  /  Deep purple = ASSISTANT.
+    Deep blue = USER  /  Deep purple = ASSISTANT  /  Dark red = ERROR.
     Header shows: role · timestamp · token counts · stop-reason badge.
     Body renders the message content as markdown.
     """
@@ -157,10 +162,11 @@ class LogBubble(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent", **kwargs)
 
         is_user    = role == "user"
-        bg_color   = CLR_LOG_USER_BG   if is_user else CLR_LOG_ASST_BG
-        hdr_color  = CLR_LOG_USER_HDR  if is_user else CLR_LOG_ASST_HDR
-        role_color = CLR_LOG_USER_ROLE if is_user else CLR_LOG_ASST_ROLE
-        role_label = "USER"            if is_user else "ASSISTANT"
+        is_error   = role == "error"
+        bg_color   = CLR_LOG_USER_BG   if is_user else (CLR_LOG_ERR_BG   if is_error else CLR_LOG_ASST_BG)
+        hdr_color  = CLR_LOG_USER_HDR  if is_user else (CLR_LOG_ERR_HDR  if is_error else CLR_LOG_ASST_HDR)
+        role_color = CLR_LOG_USER_ROLE if is_user else (CLR_LOG_ERR_ROLE if is_error else CLR_LOG_ASST_ROLE)
+        role_label = "USER"            if is_user else ("ERROR"           if is_error else "ASSISTANT")
 
         card = ctk.CTkFrame(self, fg_color=bg_color, corner_radius=10)
         card.pack(fill="x", padx=12, pady=5)

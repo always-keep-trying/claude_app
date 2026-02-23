@@ -351,8 +351,16 @@ class ChatApp(ctk.CTk):
         self._scroll_bottom()
 
     def _append_chat_bubble(self, msg: dict):
-        if msg["role"] == "user":
+        role = msg["role"]
+        if role == "user":
             UserBubble(self._messages_frame, content=msg["content"]).pack(fill="x", pady=2)
+        elif role == "error":
+            ctk.CTkLabel(
+                self._messages_frame,
+                text=f"⚠ Error: {msg['content']}",
+                text_color=CLR_RED, wraplength=680, justify="left",
+                anchor="w", font=ctk.CTkFont(size=12),
+            ).pack(fill="x", padx=28, pady=4)
         else:
             AssistantBubble(
                 self._messages_frame,
@@ -469,6 +477,13 @@ class ChatApp(ctk.CTk):
                 font=ctk.CTkFont(size=12),
             ).pack(anchor="w", padx=14, pady=(0, 8))
             self._stream_bubble = None
+
+        # Save error to history and show it in the Message Log
+        err_msg = self._hist.add_message("error", msg)
+        self._add_log_bubble(err_msg)
+        self._update_log_header(self._hist.current_chat_id)
+        self._scroll_log_bottom()
+
         self._finish_generating()
 
     def _finish_generating(self):
