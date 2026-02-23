@@ -21,6 +21,30 @@ from tkinterweb import HtmlFrame
 from config_manager import AVAILABLE_MODELS, ConfigManager
 from history_manager import MODEL_PRICING, HistoryManager
 
+# ── Patch customtkinter's scroll handler to tolerate tkinterweb string widgets ─
+# customtkinter binds _mouse_wheel_all on the root window internally.
+# tkinterweb fires scroll events where event.widget is a path string, not a
+# widget object. customtkinter's check_if_master_is_canvas calls .master on it
+# and crashes. We replace it with an identical but string-safe version.
+try:
+    from customtkinter.windows.widgets.ctk_scrollable_frame import CTkScrollableFrame as _CTkSF
+
+    def _safe_check_if_master_is_canvas(self, widget):
+        try:
+            while widget is not None:
+                if isinstance(widget, str) or not hasattr(widget, "master"):
+                    return False
+                if widget is self._parent_canvas:
+                    return True
+                widget = widget.master
+        except Exception:
+            pass
+        return False
+
+    _CTkSF.check_if_master_is_canvas = _safe_check_if_master_is_canvas
+except Exception:
+    pass
+
 # ── Global appearance ────────────────────────────────────────────────────────
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -225,6 +249,98 @@ class Tooltip:
         if self._win:
             self._win.destroy()
             self._win = None
+
+
+# ── Mouse-wheel scroll router ─────────────────────────────────────────────────
+# Instead of binding recursively on every widget (which conflicts with
+# tkinterweb), we bind a single handler on the root window that detects
+# which CTkScrollableFrame the cursor is currently over and scrolls it.
+_SCROLL_TARGETS: list = []   # populated by enable_scroll()
+
+
+def enable_scroll(scrollable_frame: ctk.CTkScrollableFrame):
+    """Register a CTkScrollableFrame as a scroll target."""
+    if scrollable_frame not in _SCROLL_TARGETS:
+        _SCROLL_TARGETS.append(scrollable_frame)
+
+
+# Fraction of viewport height to scroll per tick (8% = consistent feel)
+SCROLL_SPEED = 0.08
+
+
+def _scroll_canvas_by_fraction(canvas: tk.Canvas, direction: int):
+    """
+    Scroll *canvas* by SCROLL_SPEED * viewport height, regardless of
+    total content height. This keeps speed consistent across short and
+    long chats.
+
+    Guards:
+    - bbox("all") None  → canvas is empty, skip
+    - winfo_height < 10 → widget not yet laid out, skip
+    """
+    try:
+        viewport_h = canvas.winfo_height()
+        if viewport_h < 10:
+            return  # Risk 2: widget not yet fully laid out
+
+        bbox = canvas.bbox("all")
+        if bbox is None:
+            return  # Risk 1: canvas has no content yet
+
+        total_h = bbox[3] - bbox[1]
+        if total_h <= 0:
+            return
+
+        fraction = (viewport_h * SCROLL_SPEED) / total_h
+        current  = canvas.yview()[0]
+        canvas.yview_moveto(current + direction * fraction)
+    except Exception:
+        pass
+
+
+def _setup_global_scroll(root: tk.Tk):
+    """
+    Bind a single handler on the root window.
+    On each event, find the first registered + VISIBLE scrollable frame
+    under the cursor and scroll it by a fixed viewport fraction.
+
+    Risk 3 fix: checks winfo_viewable() so the hidden tab's frame is
+    never mistakenly scrolled instead of the visible one.
+    """
+    def _scroll(event):
+        # Normalise delta across platforms
+        if event.num == 4:
+            direction = -1
+        elif event.num == 5:
+            direction = 1
+        elif event.delta:
+            direction = -1 if event.delta > 0 else 1
+        else:
+            return
+
+        try:
+            x, y = root.winfo_pointerx(), root.winfo_pointery()
+        except Exception:
+            return
+
+        for sf in _SCROLL_TARGETS:
+            try:
+                # Risk 3: skip frames that are hidden (inside inactive tab)
+                if not sf.winfo_viewable():
+                    continue
+                wx = sf.winfo_rootx()
+                wy = sf.winfo_rooty()
+                ww = sf.winfo_width()
+                wh = sf.winfo_height()
+                if wx <= x <= wx + ww and wy <= y <= wy + wh:
+                    _scroll_canvas_by_fraction(sf._parent_canvas, direction)
+                    return
+            except Exception:
+                continue
+
+    root.bind_all("<MouseWheel>", _scroll, add="+")
+    root.bind_all("<Button-4>",   _scroll, add="+")
+    root.bind_all("<Button-5>",   _scroll, add="+")
 
 
 # ── MarkdownFrame — rendered HTML bubble content ──────────────────────────────
@@ -467,20 +583,26 @@ class UserBubble(ctk.CTkFrame):
     def __init__(self, parent, content: str, **kwargs):
         super().__init__(parent, fg_color="transparent", **kwargs)
 
-        # Spacer column grows; bubble column stays as wide as its content
+        # col 0: weighted spacer pushes bubble right; col 1: bubble itself
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)
-
         ctk.CTkLabel(self, text="You",
                      font=ctk.CTkFont(size=11, weight="bold"),
                      text_color=CLR_SUBTEXT,
-                     ).grid(row=0, column=0, columnspan=2, sticky="e", padx=14, pady=(4, 2))
+                     ).grid(row=0, column=0, columnspan=2, sticky="e",
+                            padx=14, pady=(4, 2))
 
+        # Cap bubble at 70% of a typical window width; MarkdownFrame handles overflow
         bubble = tk.Frame(self, bg=CLR_USER_BG, bd=0, highlightthickness=0)
         bubble.grid(row=1, column=1, sticky="e", padx=14, pady=(0, 6))
 
         md = MarkdownFrame(bubble, bg=CLR_USER_BG, initial_text=content)
         md.pack(fill="both", expand=True)
+
+    def pack(self, **kwargs):
+        """Override pack to always set fill=X so the internal grid has room."""
+        kwargs.setdefault("fill", "x")
+        super().pack(**kwargs)
 
 
 # ── Chat — Assistant bubble (static) ─────────────────────────────────────────
@@ -641,6 +763,7 @@ class ChatApp(ctk.CTk):
         self._refresh_chat_list()
         self._refresh_usage()
         self._new_chat()
+        _setup_global_scroll(self)
 
     # ── Layout ───────────────────────────────────────────────────────────────
 
@@ -683,6 +806,7 @@ class ChatApp(ctk.CTk):
             label_text_color=CLR_SUBTEXT)
         self._chat_list.grid(row=1, column=0, padx=6, pady=(0, 6), sticky="nsew")
         self._chat_list.grid_columnconfigure(0, weight=1)
+        enable_scroll(self._chat_list)
 
         ctk.CTkButton(sidebar, text="⚙  Settings", height=36,
                       fg_color=CLR_BG_LIGHT, hover_color="#334155",
@@ -782,6 +906,7 @@ class ChatApp(ctk.CTk):
         self._messages_frame = ctk.CTkScrollableFrame(tab, fg_color=CLR_BG_DARK)
         self._messages_frame.grid(row=0, column=0, sticky="nsew")
         self._messages_frame.grid_columnconfigure(0, weight=1)
+        enable_scroll(self._messages_frame)
 
         input_row = ctk.CTkFrame(tab, height=90, corner_radius=0, fg_color=CLR_BG_MID)
         input_row.grid(row=1, column=0, sticky="ew")
@@ -820,6 +945,7 @@ class ChatApp(ctk.CTk):
         self._log_frame = ctk.CTkScrollableFrame(tab, fg_color=CLR_BG_DARK)
         self._log_frame.grid(row=1, column=0, sticky="nsew")
         self._log_frame.grid_columnconfigure(0, weight=1)
+        enable_scroll(self._log_frame)
 
     # ── Log helpers ───────────────────────────────────────────────────────────
 
@@ -833,6 +959,7 @@ class ChatApp(ctk.CTk):
             input_tokens=msg.get("input_tokens", 0),
             output_tokens=msg.get("output_tokens", 0),
         ).pack(fill="x", pady=0)
+        enable_scroll(self._log_frame)
 
     def _clear_log(self):
         for w in self._log_frame.winfo_children():
@@ -895,6 +1022,7 @@ class ChatApp(ctk.CTk):
             AssistantBubble(self._messages_frame,
                             content=msg["content"],
                             stop_reason=msg.get("stop_reason")).pack(fill="x", pady=2)
+        enable_scroll(self._messages_frame)
 
     def _clear_messages(self):
         for w in self._messages_frame.winfo_children():
@@ -929,6 +1057,7 @@ class ChatApp(ctk.CTk):
 
         self._stream_bubble = StreamingBubble(self._messages_frame)
         self._stream_bubble.pack(fill="x", pady=2)
+        enable_scroll(self._messages_frame)
         self._scroll_bottom()
         self._scroll_log_bottom()
 
