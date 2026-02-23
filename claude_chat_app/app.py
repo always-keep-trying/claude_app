@@ -60,7 +60,7 @@ class ChatApp(ctk.CTk):
         self._build_main_area()
 
     def _build_topbar(self):
-        topbar = ctk.CTkFrame(self, height=48, corner_radius=0, fg_color=CLR_SIDEBAR)
+        topbar = ctk.CTkFrame(self, height=58, corner_radius=0, fg_color=CLR_SIDEBAR)
         topbar.grid(row=0, column=0, columnspan=2, sticky="ew")
         topbar.grid_columnconfigure(1, weight=1)
         topbar.grid_propagate(False)
@@ -69,15 +69,52 @@ class ChatApp(ctk.CTk):
             topbar, text="⚡  Claude Chat",
             font=ctk.CTkFont(size=16, weight="bold"),
             text_color=CLR_TEXT,
-        ).grid(row=0, column=0, padx=16, pady=10, sticky="w")
+        ).grid(row=0, column=0, rowspan=2, padx=16, pady=10, sticky="w")
 
-        self._usage_btn = ctk.CTkButton(
-            topbar, text="Tokens: —  |  Cost: $—",
-            font=ctk.CTkFont(size=12), text_color=CLR_SUBTEXT,
-            fg_color="transparent", hover_color=CLR_BG_LIGHT,
-            command=self._show_usage_detail, anchor="e",
+        # ── Usage display: clickable two-line widget ──────────────────────────
+        usage_frame = ctk.CTkFrame(topbar, fg_color="transparent", cursor="hand2")
+        usage_frame.grid(row=0, column=2, rowspan=2, padx=16, pady=6, sticky="w")
+
+        # Top line — total tokens + cost
+        self._usage_total_label = ctk.CTkLabel(
+            usage_frame,
+            text="Tokens: —  |  Cost: $—",
+            font=ctk.CTkFont(size=12),
+            text_color=CLR_SUBTEXT,
+            anchor="w",
         )
-        self._usage_btn.grid(row=0, column=2, padx=16, pady=10, sticky="e")
+        self._usage_total_label.pack(anchor="w")
+
+        # Bottom line — three side-by-side labels for coloured in/out breakdown
+        breakdown_row = ctk.CTkFrame(usage_frame, fg_color="transparent")
+        breakdown_row.pack(anchor="w")
+
+        self._usage_in_label = ctk.CTkLabel(
+            breakdown_row, text="↑ — in",
+            font=ctk.CTkFont(size=11),
+            text_color="#60a5fa",   # soft blue for input
+            anchor="w",
+        )
+        self._usage_in_label.pack(side="left")
+
+        ctk.CTkLabel(
+            breakdown_row, text="  ·  ",
+            font=ctk.CTkFont(size=11),
+            text_color=CLR_SUBTEXT,
+        ).pack(side="left")
+
+        self._usage_out_label = ctk.CTkLabel(
+            breakdown_row, text="↓ — out",
+            font=ctk.CTkFont(size=11),
+            text_color="#4ade80",   # soft green for output
+            anchor="w",
+        )
+        self._usage_out_label.pack(side="left")
+
+        # Bind click on every child widget to open the detail dialog
+        for widget in [usage_frame, self._usage_total_label,
+                       breakdown_row, self._usage_in_label, self._usage_out_label]:
+            widget.bind("<Button-1>", lambda _e: self._show_usage_detail())
 
     def _build_sidebar(self):
         sidebar = ctk.CTkFrame(self, width=230, corner_radius=0, fg_color=CLR_SIDEBAR)
@@ -444,11 +481,15 @@ class ChatApp(ctk.CTk):
     # ── Usage ─────────────────────────────────────────────────────────────────
 
     def _refresh_usage(self):
-        u = self._hist.get_total_usage()
-        total = u["input_tokens"] + u["output_tokens"]
-        self._usage_btn.configure(
+        u     = self._hist.get_total_usage()
+        ti    = u["input_tokens"]
+        to    = u["output_tokens"]
+        total = ti + to
+        self._usage_total_label.configure(
             text=f"Tokens: {total:,}  |  Cost: ${u['total_cost']:.4f}"
         )
+        self._usage_in_label.configure(text=f"↑ {ti:,} in")
+        self._usage_out_label.configure(text=f"↓ {to:,} out")
 
     def _show_usage_detail(self):
         UsageDetailDialog(self, self._hist.get_total_usage())
