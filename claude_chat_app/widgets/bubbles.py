@@ -140,6 +140,11 @@ class StreamingBubble(ctk.CTkFrame):
         if not self._finished:
             self._md.set_text(self._text + " ▌")
 
+    def set_status(self, msg: str):
+        """Show a temporary italic status line during retry backoff."""
+        if not self._finished:
+            self._md.set_text(f"*{msg}*")
+
     def finish(self, stop_reason=None):
         self._finished = True
         self._md.set_text(self._text)

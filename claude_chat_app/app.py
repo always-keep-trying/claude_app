@@ -14,7 +14,7 @@ import customtkinter as ctk
 from anthropic import Anthropic
 
 from config_manager import ConfigManager
-from history_manager import HistoryManager
+from history_manager import HistoryManager, MODEL_PRICING
 from scroll import enable_scroll, setup_global_scroll
 from theme import (
     CLR_ACCENT, CLR_ACCENT_HV, CLR_BG_DARK, CLR_BG_LIGHT, CLR_BG_MID,
@@ -27,6 +27,11 @@ from widgets import (
 
 APP_DIR = Path.home() / ".claude_chat_app"
 APP_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── Retry config for rate-limited API calls ───────────────────────────────────
+_MAX_RETRIES  = 3
+_BASE_BACKOFF = 1.0  # seconds
+_JITTER       = 0.5  # seconds
 
 
 class ChatApp(ctk.CTk):
@@ -301,9 +306,20 @@ class ChatApp(ctk.CTk):
 
     def _update_log_header(self, chat_id=None):
         if chat_id:
-            count = len(self._hist.current_messages)
+            msgs  = self._hist.current_messages
+            count = sum(1 for m in msgs if m['role'] != 'error')
+            ti    = sum(m.get("input_tokens",  0) for m in msgs)
+            to    = sum(m.get("output_tokens", 0) for m in msgs)
+            model = self._cfg.get("model", "claude-sonnet-4-6")
+            p     = MODEL_PRICING.get(model, {"input": 3.00, "output": 15.00})
+            cost  = (ti * p["input"] + to * p["output"]) / 1_000_000
             self._log_header_label.configure(
-                text=f"Chat {chat_id[:8]}…   ·   {count} message{'s' if count != 1 else ''}"
+                text=(
+                    f"Chat {chat_id[:8]}\u2026"
+                    f"   \u00b7   {count} message{'s' if count != 1 else ''}"
+                    f"   \u00b7   \u2191 {ti:,} in  \u2193 {to:,} out"
+                    f"   \u00b7   ${cost:.4f}"
+                )
             )
         else:
             self._log_header_label.configure(text="No active chat")
@@ -415,41 +431,65 @@ class ChatApp(ctk.CTk):
     # ── API thread ────────────────────────────────────────────────────────────
 
     def _api_thread(self, api_key: str):
+        import random
+        import time
+        from anthropic import RateLimitError
+
         model       = self._cfg.get("model", "claude-sonnet-4-6")
         max_tokens  = self._cfg.get("max_tokens", 8096)
         temperature = self._cfg.get("temperature", 1.0)
         system      = self._cfg.get("system_prompt", "")
 
+        # Exclude error messages — API only accepts "user" and "assistant" roles
         messages = [
             {"role": m["role"], "content": m["content"]}
             for m in self._hist.current_messages
+            if m["role"] != "error"
         ]
 
         kwargs: dict = dict(model=model, max_tokens=max_tokens, messages=messages)
         if system:             kwargs["system"]      = system
         if temperature != 1.0: kwargs["temperature"] = temperature
 
-        full_text   = ""
-        stop_reason = in_tokens = out_tokens = None
+        client = Anthropic(api_key=api_key)
 
-        try:
-            client = Anthropic(api_key=api_key)
-            with client.messages.stream(**kwargs) as stream:
-                for chunk in stream.text_stream:
-                    full_text += chunk
-                    self.after(0, self._on_chunk, chunk)
-            final       = stream.get_final_message()
-            stop_reason = final.stop_reason
-            in_tokens   = final.usage.input_tokens
-            out_tokens  = final.usage.output_tokens
-            self.after(0, self._on_done, full_text, stop_reason, in_tokens, out_tokens, model)
-        except Exception as exc:
-            self.after(0, self._on_error, str(exc))
+        for attempt in range(_MAX_RETRIES + 1):
+            full_text   = ""
+            stop_reason = in_tokens = out_tokens = None
+            try:
+                with client.messages.stream(**kwargs) as stream:
+                    for chunk in stream.text_stream:
+                        full_text += chunk
+                        self.after(0, self._on_chunk, chunk)
+                final       = stream.get_final_message()
+                stop_reason = final.stop_reason
+                in_tokens   = final.usage.input_tokens
+                out_tokens  = final.usage.output_tokens
+                self.after(0, self._on_done, full_text, stop_reason, in_tokens, out_tokens, model)
+                return  # success — exit retry loop
+
+            except RateLimitError:
+                if attempt == _MAX_RETRIES:
+                    self.after(0, self._on_error, "Rate limit exceeded — max retries reached.")
+                    return
+                wait = _BASE_BACKOFF * (2 ** attempt) + random.uniform(0, _JITTER)
+                msg  = f"Rate limited — retrying in {wait:.1f}s… (attempt {attempt + 1}/{_MAX_RETRIES})"
+                self.after(0, self._notify_retry, msg)
+                time.sleep(wait)
+
+            except Exception as exc:
+                self.after(0, self._on_error, str(exc))
+                return
 
     def _on_chunk(self, chunk: str):
         if self._stream_bubble:
             self._stream_bubble.append(chunk)
             self._scroll_bottom()
+
+    def _notify_retry(self, msg: str):
+        """Update the streaming bubble with a retry status during backoff."""
+        if self._stream_bubble:
+            self._stream_bubble.set_status(msg)
 
     def _on_done(self, full_text, stop_reason, in_tok, out_tok, model):
         if self._stream_bubble:
