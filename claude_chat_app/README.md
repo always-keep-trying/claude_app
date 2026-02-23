@@ -70,11 +70,19 @@ All message bubbles (in both the Chat tab and the Message Log tab) render full m
 
 ```
 claude_chat_app/
-├── main.py              ← UI, app logic, entry point
-├── config_manager.py    ← Reads/writes ~/.claude_chat_app/config.json
-├── history_manager.py   ← Chat sessions + persistent token tracking
+├── main.py                  ← Entry point (imports scroll patch, runs ChatApp)
+├── app.py                   ← ChatApp window: layout, event wiring, API thread
+├── scroll.py                ← Mouse-wheel router + customtkinter/tkinterweb patch
+├── theme.py                 ← All colour constants and global appearance settings
+├── config_manager.py        ← Reads/writes ~/.claude_chat_app/config.json
+├── history_manager.py       ← Chat sessions + persistent token/cost tracking
 ├── requirements.txt
-└── README.md
+├── README.md
+└── widgets/
+    ├── __init__.py          ← Package exports (clean public API)
+    ├── markdown_frame.py    ← HTML rendering widget (MarkdownFrame, render_html)
+    ├── bubbles.py           ← Chat bubbles: UserBubble, AssistantBubble, StreamingBubble, LogBubble
+    └── dialogs.py           ← Tooltip, SettingsDialog, UsageDetailDialog
 ```
 
 ### Data stored on disk
