@@ -1,2 +1,10 @@
+# Core API
 anthropic>=0.34.0
+
+# UI framework
 customtkinter>=5.2.2
+
+# Markdown rendering
+markdown>=3.6
+tkinterweb>=3.24.8
+pygments>=2.18.0
