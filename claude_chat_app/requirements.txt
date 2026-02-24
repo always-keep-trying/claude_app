@@ -8,3 +8,6 @@ customtkinter>=5.2.2
 markdown>=3.6
 tkinterweb>=3.24.8
 pygments>=2.18.0
+
+# Secure API key storage (OS keychain)
+keyring>=25.0.0

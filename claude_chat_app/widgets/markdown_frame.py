@@ -158,7 +158,7 @@ class MarkdownFrame(tk.Frame):
     Height is estimated from content length; no tkinterweb internals queried.
     """
     _MIN_H = 36
-    _MAX_H = 600
+    _MAX_H = 8000
 
     def __init__(self, parent, bg: str, initial_text: str = "", **kwargs):
         super().__init__(parent, bg=bg, **kwargs)

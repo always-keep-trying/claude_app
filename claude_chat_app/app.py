@@ -25,9 +25,6 @@ from widgets import (
     StreamingBubble, UsageDetailDialog, UserBubble,
 )
 
-APP_DIR = Path.home() / ".claude_chat_app"
-APP_DIR.mkdir(parents=True, exist_ok=True)
-
 # ── Retry config for rate-limited API calls ───────────────────────────────────
 _MAX_RETRIES  = 3
 _BASE_BACKOFF = 1.0  # seconds
@@ -38,8 +35,10 @@ class ChatApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self._cfg  = ConfigManager(APP_DIR)
-        self._hist = HistoryManager(APP_DIR)
+        app_dir = Path.home() / ".claude_chat_app"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        self._cfg  = ConfigManager(app_dir)
+        self._hist = HistoryManager(app_dir)
         self._generating   = False
         self._stream_bubble: StreamingBubble | None = None
 
@@ -424,21 +423,31 @@ class ChatApp(ctk.CTk):
         self._scroll_bottom()
         self._scroll_log_bottom()
 
+        # Snapshot config now — prevents race if user opens Settings mid-generation
+        api_config = {
+            "model":         self._cfg.get("model",         "claude-sonnet-4-6"),
+            "max_tokens":    self._cfg.get("max_tokens",    8096),
+            "temperature":   self._cfg.get("temperature",   1.0),
+            "system_prompt": self._cfg.get("system_prompt", ""),
+        }
+
         self._generating = True
         self._send_btn.configure(state="disabled", text="…")
-        threading.Thread(target=self._api_thread, args=(api_key,), daemon=True).start()
+        threading.Thread(
+            target=self._api_thread, args=(api_key, api_config), daemon=True
+        ).start()
 
     # ── API thread ────────────────────────────────────────────────────────────
 
-    def _api_thread(self, api_key: str):
+    def _api_thread(self, api_key: str, api_config: dict):
         import random
         import time
         from anthropic import RateLimitError
 
-        model       = self._cfg.get("model", "claude-sonnet-4-6")
-        max_tokens  = self._cfg.get("max_tokens", 8096)
-        temperature = self._cfg.get("temperature", 1.0)
-        system      = self._cfg.get("system_prompt", "")
+        model       = api_config["model"]
+        max_tokens  = api_config["max_tokens"]
+        temperature = api_config["temperature"]
+        system      = api_config["system_prompt"]
 
         # Exclude error messages — API only accepts "user" and "assistant" roles
         messages = [

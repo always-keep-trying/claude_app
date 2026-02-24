@@ -5,6 +5,7 @@ History lives in ~/.claude_chat_app/history/
 Usage data lives in ~/.claude_chat_app/usage.json
 """
 
+import copy
 import json
 import uuid
 from datetime import datetime
@@ -77,7 +78,8 @@ class HistoryManager:
         return cost
 
     def get_total_usage(self) -> Dict:
-        return dict(self.usage)
+        """Return a deep copy so callers cannot accidentally mutate internal state."""
+        return copy.deepcopy(self.usage)
 
     # ------------------------------------------------------------------
     # Chat session management
