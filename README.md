@@ -1,11 +1,10 @@
 # A simple desktop app for chatting with Claude, built by Claude
 
+![Screenshot](./images/Screenshot.png)
+
 ## What is it?
 It is a simple desktop app for chatting with Claude that gives users more control than the standard web interface.
 Your conversation history lives on your computer, you can choose the models you want to talk to, and keeps track of the cost.
-
-![Screenshot](./images/Screenshot.png)
-
 
 ## Why?
 To test out Claude's functionality(Sonnet 4.6 Extended). ***The app was 100% built by Claude, with guidance from a human.***
