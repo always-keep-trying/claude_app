@@ -5,18 +5,18 @@ It is a simple desktop app for chatting with Claude that gives users more contro
 Your conversation history lives on your computer, you can choose the models you want to talk to, and keeps track of the cost.
 
 ## Why?
-To test out Claude's functionality(Sonnet 4.6 Extended). ***The app was 100% built by Claude, with iterations and guidance from a human.***
+To test out Claude's functionality(Sonnet 4.6 Extended). ***The app was 100% built by Claude, with guidance from a human.***
 
 ## Chat configuration
 - Select between models (Opus, Sonnet, Haiku)
 - Set the [Temperature](https://platform.claude.com/docs/en/about-claude/glossary#temperature) parameter (controls the randomness in the response)
-- Set a System Prompt for the conversations
+- Set a System Prompt for conversations
 - Set a token limit per response
 
 ## Key Features
 - Your API key is stored securely in your operating system's password manager
 - Full markdown rendering — code, tables, and formatting display correctly
-- A detailed message log showing timestamps, token counts and cost per chat
+- A detailed message log showing timestamps, token counts, errors and cost per chat
 - Works offline for reading past conversations
 
 
