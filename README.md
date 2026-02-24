@@ -4,6 +4,9 @@
 It is a simple desktop app for chatting with Claude that gives users more control than the standard web interface.
 Your conversation history lives on your computer, you can choose the models you want to talk to, and keeps track of the cost.
 
+![Screenshot](./images/Screenshot.png)
+
+
 ## Why?
 To test out Claude's functionality(Sonnet 4.6 Extended). ***The app was 100% built by Claude, with guidance from a human.***
 
@@ -25,7 +28,7 @@ To test out Claude's functionality(Sonnet 4.6 Extended). ***The app was 100% bui
 1. Set up a Python virtual environment using [requirements.txt](./claude_chat_app/requirements.txt)
 2. Get the [API Key](https://platform.claude.com/settings/keys) (purchase required)
 3. Run `python ./claude_chat_app/main.py`
-4. Click on ⚙Settings and paste in the API key
+4. Click on ⚙Settings, paste in the API key and click Save Setting
 5. Chat away!
 
 ## Local Data Storage
