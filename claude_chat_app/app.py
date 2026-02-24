@@ -358,12 +358,18 @@ class ChatApp(ctk.CTk):
         messages = self._hist.load_chat(chat_id)
         self._clear_messages()
         self._clear_log()
+        # Reset scroll regions immediately so tkinter doesn't inherit the
+        # previous chat's canvas height when switching to a shorter chat
+        self._messages_frame._parent_canvas.configure(scrollregion=(0, 0, 0, 0))
+        self._log_frame._parent_canvas.configure(scrollregion=(0, 0, 0, 0))
         for msg in messages:
             self._append_chat_bubble(msg)
             self._add_log_bubble(msg)
         self._update_log_header(chat_id)
         self._refresh_chat_list()
-        self._scroll_bottom()
+        # Scroll both panels to top after rendering completes
+        self.after(100, lambda: self._messages_frame._parent_canvas.yview_moveto(0))
+        self.after(100, lambda: self._log_frame._parent_canvas.yview_moveto(0))
 
     def _append_chat_bubble(self, msg: dict):
         role = msg["role"]
